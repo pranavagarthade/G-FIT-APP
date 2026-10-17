@@ -146,7 +146,7 @@ export default function ChatbotScreen() {
           )}
         </ScrollView>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>
-          {quickReplies.map((reply) => <TouchableOpacity key={reply} style={styles.chip} onPress={() => setInput(reply)}><Text style={styles.chipText}>{reply}</Text></TouchableOpacity>)}
+          {quickReplies.map((reply) => <TouchableOpacity key={reply} style={styles.chip} onPress={() => setInput(reply)}><Text numberOfLines={1} style={styles.chipText}>{reply}</Text></TouchableOpacity>)}
         </ScrollView>
         {image && <View style={styles.preview}><Image source={{ uri: image.uri }} style={styles.previewImage} /><TouchableOpacity onPress={() => setImage(undefined)}><Ionicons name="close-circle" size={24} color={Colors.destructive} /></TouchableOpacity></View>}
         <View style={styles.inputBar}>
@@ -177,14 +177,14 @@ const styles = StyleSheet.create({
   disclaimer: { paddingHorizontal: Spacing.md, paddingVertical: Spacing.xs, backgroundColor: Colors.accentLimeLight },
   disclaimerText: { ...Typography.caption, fontSize: 10, textAlign: 'center' },
   messageList: { flex: 1 },
-  messageContent: { padding: Spacing.md, paddingBottom: Spacing.sm },
+  messageContent: { padding: Spacing.md, paddingBottom: Spacing.sm, flexGrow: 1 },
   messageImage: { width: 180, height: 180, borderRadius: Radius.md, alignSelf: 'flex-end', marginBottom: Spacing.xs },
   sources: { ...Typography.caption, fontSize: 10, marginLeft: Spacing.sm, marginBottom: Spacing.sm },
   loading: { alignSelf: 'flex-start', margin: Spacing.sm },
   retry: { flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', padding: Spacing.sm },
   retryText: { ...Typography.caption, color: Colors.primaryTeal },
-  chips: { paddingHorizontal: Spacing.md, gap: Spacing.sm, paddingBottom: Spacing.sm },
-  chip: { borderWidth: 1, borderColor: Colors.primaryTeal, borderRadius: Radius.full, paddingHorizontal: Spacing.sm, paddingVertical: 6 },
+  chips: { paddingHorizontal: Spacing.md, gap: Spacing.sm, paddingBottom: Spacing.sm, alignItems: 'center' },
+  chip: { height: 36, flexGrow: 0, flexShrink: 0, alignSelf: 'flex-start', borderWidth: 1, borderColor: Colors.primaryTeal, borderRadius: Radius.full, paddingHorizontal: Spacing.md, alignItems: 'center', justifyContent: 'center' },
   chipText: { ...Typography.caption, color: Colors.primaryTeal },
   preview: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, paddingHorizontal: Spacing.md, paddingBottom: Spacing.sm },
   previewImage: { width: 56, height: 56, borderRadius: Radius.sm },
