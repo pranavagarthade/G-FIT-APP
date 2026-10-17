@@ -4,10 +4,13 @@
   "main": "expo-router/entry",
   "dependencies": {
     "@expo/vector-icons": "^14.0.0",
+    "@react-native-community/cli-server-api": "^20.2.0",
     "@react-native/js-polyfills": "^0.87.1",
-    "expo": "^44.0.6",
+    "expo": "^57.0.0",
     "expo-constants": "^57.0.21",
     "expo-font": "~12.0.0",
+    "expo-image-manipulator": "~57.0.21",
+    "expo-image-picker": "~57.0.20",
     "expo-linear-gradient": "~13.0.0",
     "expo-linking": "^57.0.12",
     "expo-router": "^57.0.25",
@@ -20,8 +23,8 @@
     "fbjs-css-vars": "^1.0.2",
     "install": "^0.13.0",
     "metro": "^0.70.4",
-    "react": "18.2.0",
-    "react-dom": "18.2.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
     "react-native": "^0.86.3",
     "react-native-gesture-handler": "~2.16.0",
     "react-native-reanimated": "~3.10.0",
@@ -34,6 +37,7 @@
   "devDependencies": {
     "@babel/core": "^7.20.0",
     "@types/react": "~18.2.45",
+    "@types/react-native": "^0.64.38",
     "typescript": "^5.3.3"
   },
   "scripts": {
