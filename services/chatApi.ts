@@ -14,12 +14,15 @@ export interface ChatEvent {
   message?: string;
 }
 
+export type ChatLanguage = 'en' | 'hi' | 'mr';
+
 const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:8000';
 
 export async function streamChat(
   values: {
     text: string;
     conversationId?: string;
+    language?: ChatLanguage;
     image?: { uri: string; name: string; type: string };
   },
   onEvent: (event: ChatEvent) => void,
@@ -27,6 +30,7 @@ export async function streamChat(
   const body = new FormData();
   body.append('text', values.text);
   if (values.conversationId) body.append('conversation_id', values.conversationId);
+  body.append('language', values.language || 'en');
   if (values.image) {
     body.append('image', values.image as unknown as Blob);
   }
@@ -55,4 +59,17 @@ export async function streamChat(
     buffer = lines.pop() || '';
     lines.filter(Boolean).forEach((line) => onEvent(JSON.parse(line) as ChatEvent));
   }
+}
+
+export async function transcribeVoice(
+  recording: { uri: string; name: string; type: string },
+  language: ChatLanguage,
+): Promise<string> {
+  const body = new FormData();
+  body.append('language', language);
+  body.append('audio', recording as unknown as Blob);
+  const response = await fetch(`${API_BASE_URL}/api/transcribe`, { method: 'POST', body });
+  if (!response.ok) throw new Error((await response.text()) || 'Voice transcription failed.');
+  const result = await response.json() as { text?: string };
+  return result.text?.trim() || '';
 }

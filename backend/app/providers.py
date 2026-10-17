@@ -39,3 +39,13 @@ async def stream_answer(prompt: str) -> AsyncIterator[str]:
         token = event.choices[0].delta.content if event.choices else None
         if token:
             yield token
+
+
+async def transcribe_audio(audio: bytes, filename: str, content_type: str, language: str) -> str:
+    response = await client().audio.transcriptions.create(
+        model=settings.openai_transcription_model,
+        file=(filename, audio, content_type),
+        language=language,
+        response_format="text",
+    )
+    return str(response).strip()

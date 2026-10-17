@@ -10,7 +10,7 @@ from fastapi.responses import StreamingResponse
 
 from .config import settings
 from .models import UserProfile
-from .providers import describe_image, stream_answer
+from .providers import describe_image, stream_answer, transcribe_audio
 from .retrieval import load_chunks, retrieve
 from .safety import safety_message
 
@@ -49,6 +49,7 @@ async def chat(
     text: Annotated[str, Form()] = "",
     conversation_id: Annotated[str | None, Form()] = None,
     profile: Annotated[str | None, Form()] = None,
+    language: Annotated[str, Form()] = "en",
     image: Annotated[UploadFile | None, File()] = None,
     x_user_id: Annotated[str | None, Header()] = None,
 ):
@@ -74,7 +75,8 @@ async def chat(
     context = "\n\n".join(f"[{item.title}] {item.text}" for item in selected)
     conversation_id = conversation_id or str(uuid4())
     prior = history[conversation_id][-10:]
-    prompt = f"CONTEXT:\n{context}\n\nUSER PROFILE:\n{user_profile.model_dump_json()}\n\nRECENT CONVERSATION:\n{json.dumps(prior)}\n\nIMAGE DESCRIPTION:\n{image_description or 'none'}\n\nUSER QUESTION:\n{text}"
+    language_name = {"en": "English", "hi": "Hindi", "mr": "Marathi"}.get(language, "English")
+    prompt = f"Respond in {language_name}. CONTEXT:\n{context}\n\nUSER PROFILE:\n{user_profile.model_dump_json()}\n\nRECENT CONVERSATION:\n{json.dumps(prior)}\n\nIMAGE DESCRIPTION:\n{image_description or 'none'}\n\nUSER QUESTION:\n{text}"
     sources = [{"title": item.title, "source": item.source, "topic": item.topic} for item in selected]
 
     async def events():
@@ -91,6 +93,25 @@ async def chat(
         yield json.dumps({"type": "done", "conversationId": conversation_id, "answer": final, "sources": sources, "suggestions": ["Make a meal plan", "Fix my form", "Weekly workout"]}) + "\n"
 
     return StreamingResponse(events(), media_type="application/x-ndjson")
+
+
+@app.post("/api/transcribe")
+async def transcribe(
+    audio: UploadFile = File(...),
+    language: Annotated[str, Form()] = "en",
+):
+    if language not in {"en", "hi", "mr"}:
+        raise HTTPException(status_code=422, detail="Unsupported language.")
+    if (audio.content_type or "") not in {"audio/m4a", "audio/mp4", "audio/webm", "audio/wav", "audio/x-caf"}:
+        raise HTTPException(status_code=415, detail="Unsupported audio format.")
+    data = await audio.read()
+    if len(data) > 25 * 1024 * 1024:
+        raise HTTPException(status_code=413, detail="Audio must be 25 MB or smaller.")
+    try:
+        text = await transcribe_audio(data, audio.filename or "voice.m4a", audio.content_type or "audio/m4a", language)
+    except RuntimeError as error:
+        raise HTTPException(status_code=503, detail=str(error)) from error
+    return {"text": text}
 
 
 @app.get("/api/chat/history")

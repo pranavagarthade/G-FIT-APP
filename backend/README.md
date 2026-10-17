@@ -19,16 +19,19 @@ uvicorn app.main:app --reload --port 8000
 
 Set `EXPO_PUBLIC_API_URL=http://YOUR-LAN-IP:8000` for a physical device; `localhost` only works for a simulator on the same host.
 
-`OPENAI_API_KEY` is required for generated or vision responses. `ADMIN_INGEST_KEY` must be set before using `/api/admin/ingest`. Prototype requests use `prototype-user`; replace this with the existing auth adapter when profile/auth details are available.
+`OPENAI_API_KEY` is required for generated, vision, and voice transcription responses. `OPENAI_TRANSCRIPTION_MODEL` defaults to `gpt-4o-mini-transcribe`. `ADMIN_INGEST_KEY` must be set before using `/api/admin/ingest`. Prototype requests use `prototype-user`; replace this with the existing auth adapter when profile/auth details are available.
 
 ## API
 
 - `POST /api/chat`: multipart fields `text`, `image`, `conversation_id`, and optional profile JSON. Streams NDJSON token/done/error events.
+- `POST /api/transcribe`: multipart `audio` plus `language` (`en`, `hi`, or `mr`); returns transcribed text.
 - `GET /api/chat/history?conversation_id=...`: returns the last 20 messages.
 - `POST /api/admin/ingest`: admin-key protected licensed Markdown upload.
 - `GET /health`: service and chunk count.
 
 Images are resized on-device and not persisted by this slice. A production storage adapter must require consent, encrypt at rest, and delete/anonymize after 30 days.
+
+The mobile chat supports English, Hindi, and Marathi. The microphone uses browser speech recognition on web and Expo Audio recording plus `/api/transcribe` on native devices. Assistant responses are spoken with Expo Speech.
 
 ## Evaluation checklist
 

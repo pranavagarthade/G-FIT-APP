@@ -5,6 +5,7 @@ class Settings(BaseSettings):
     openai_api_key: str = ""
     openai_chat_model: str = "gpt-4o-mini"
     openai_vision_model: str = "gpt-4o-mini"
+    openai_transcription_model: str = "gpt-4o-mini-transcribe"
     openai_embedding_model: str = "text-embedding-3-small"
     chat_rate_limit_per_minute: int = 20
     image_retention_days: int = 30
