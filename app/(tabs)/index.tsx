@@ -289,7 +289,7 @@ export default function HomeScreen() {
             { scale: fadeAnim.interpolate({ inputRange: [0, 1], outputRange: [0.95, 1] }) }
           ] 
         }}>
-          <TouchableOpacity activeOpacity={0.85}>
+          <TouchableOpacity activeOpacity={0.85} onPress={() => router.push('/challenges')}>
             <CardSurface style={styles.challengeCard}>
               <Image source={require('../../assets/sugar_detox.png')} style={styles.challengeBg} resizeMode="cover" />
               <LinearGradient

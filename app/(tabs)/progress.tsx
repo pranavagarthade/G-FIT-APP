@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   View,
   Text,
@@ -7,7 +7,6 @@ import {
   TouchableOpacity,
   Dimensions,
   Image,
-  Animated,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -32,8 +31,6 @@ const CHART_HEIGHT = 180;
 const mainTabs = ['Overview', 'Details', 'Story'];
 const filterTabs = ['Daily', 'Weekly', 'Monthly'];
 
-const AnimatedPolyline = Animated.createAnimatedComponent(Polyline);
-
 // Simple line chart component using SVG with animation and photo nodes
 function WeightChart() {
   const data = weightData.datasets[0].data;
@@ -51,18 +48,6 @@ function WeightChart() {
   });
 
   const polylinePoints = points.map(p => `${p.x},${p.y}`).join(' ');
-
-  // Animation for the line
-  const drawAnim = useRef(new Animated.Value(0)).current;
-  const pathLength = 1000; // estimated length for strokeDasharray
-
-  useEffect(() => {
-    Animated.timing(drawAnim, {
-      toValue: pathLength,
-      duration: 1500,
-      useNativeDriver: true,
-    }).start();
-  }, []);
 
   return (
     <Svg width={CHART_WIDTH} height={CHART_HEIGHT}>
@@ -111,19 +96,14 @@ function WeightChart() {
         );
       })}
       
-      {/* Animated Line */}
-      <AnimatedPolyline
+      {/* Weight trend line */}
+      <Polyline
         points={polylinePoints}
         fill="none"
         stroke={Colors.primaryTeal}
         strokeWidth={2.5}
         strokeLinejoin="round"
         strokeLinecap="round"
-        strokeDasharray={pathLength}
-        strokeDashoffset={drawAnim.interpolate({
-          inputRange: [0, pathLength],
-          outputRange: [pathLength, 0]
-        })}
       />
       
       {/* Data points (simulated photo nodes on every 3rd point) */}

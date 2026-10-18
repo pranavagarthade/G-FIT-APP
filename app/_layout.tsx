@@ -43,6 +43,13 @@ export default function RootLayout() {
           }}
         />
         <Stack.Screen
+          name="challenges"
+          options={{
+            presentation: 'modal',
+            animation: 'slide_from_right',
+          }}
+        />
+        <Stack.Screen
           name="program/[id]"
           options={{
             animation: 'slide_from_right',

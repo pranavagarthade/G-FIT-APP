@@ -32,7 +32,14 @@ export async function streamChat(
   if (values.conversationId) body.append('conversation_id', values.conversationId);
   body.append('language', values.language || 'en');
   if (values.image) {
-    body.append('image', values.image as unknown as Blob);
+    if (typeof Blob !== 'undefined' && typeof window !== 'undefined') {
+      const imageResponse = await fetch(values.image.uri);
+      if (!imageResponse.ok) throw new Error('Unable to read the selected image.');
+      const imageBlob = await imageResponse.blob();
+      body.append('image', imageBlob, values.image.name);
+    } else {
+      body.append('image', values.image as unknown as Blob);
+    }
   }
 
   const response = await fetch(`${API_BASE_URL}/api/chat`, {

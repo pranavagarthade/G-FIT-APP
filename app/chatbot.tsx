@@ -141,26 +141,44 @@ export default function ChatbotScreen() {
   };
 
   const selectImage = async (source: 'camera' | 'library') => {
-    const permission = source === 'camera'
-      ? await ImagePicker.requestCameraPermissionsAsync()
-      : await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!permission.granted) {
-      Alert.alert('Permission needed', `Please allow ${source} access to attach a photo.`);
+    try {
+      if (Platform.OS !== 'web') {
+        const permission = source === 'camera'
+          ? await ImagePicker.requestCameraPermissionsAsync()
+          : await ImagePicker.requestMediaLibraryPermissionsAsync();
+        if (!permission.granted) {
+          Alert.alert('Permission needed', `Please allow ${source} access to attach a photo.`);
+          return;
+        }
+      }
+      const result = source === 'camera'
+        ? await ImagePicker.launchCameraAsync({ mediaTypes: ['images'], quality: 0.8 })
+        : await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.8 });
+      if (result.canceled || !result.assets[0]) return;
+      const asset = result.assets[0];
+      const resized = await ImageManipulator.manipulateAsync(
+        asset.uri,
+        asset.width > 1024 || asset.height > 1024
+          ? [{ resize: asset.width >= asset.height ? { width: 1024 } : { height: 1024 } }]
+          : [],
+        { compress: 0.8, format: ImageManipulator.SaveFormat.JPEG },
+      );
+      setImage({ uri: resized.uri, name: `fitcoach-${Date.now()}.jpg`, type: 'image/jpeg' });
+    } catch (error) {
+      Alert.alert('Unable to attach photo', error instanceof Error ? error.message : 'Please try again.');
+    }
+  };
+
+  const chooseImage = () => {
+    if (Platform.OS === 'web') {
+      void selectImage('library');
       return;
     }
-    const result = source === 'camera'
-      ? await ImagePicker.launchCameraAsync({ mediaTypes: ['images'], quality: 0.8 })
-      : await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.8 });
-    if (result.canceled || !result.assets[0]) return;
-    const asset = result.assets[0];
-    const resized = await ImageManipulator.manipulateAsync(
-      asset.uri,
-      asset.width > 1024 || asset.height > 1024
-        ? [{ resize: asset.width >= asset.height ? { width: 1024 } : { height: 1024 } }]
-        : [],
-      { compress: 0.8, format: ImageManipulator.SaveFormat.JPEG },
-    );
-    setImage({ uri: resized.uri, name: `fitcoach-${Date.now()}.jpg`, type: 'image/jpeg' });
+    Alert.alert('Attach photo', 'Choose a source', [
+      { text: 'Camera', onPress: () => void selectImage('camera') },
+      { text: 'Gallery', onPress: () => void selectImage('library') },
+      { text: 'Cancel', style: 'cancel' },
+    ]);
   };
 
   const sendMessage = async (retryValues?: { text: string; image?: typeof image }) => {
@@ -260,7 +278,7 @@ export default function ChatbotScreen() {
         </ScrollView>
         {image && <View style={styles.preview}><Image source={{ uri: image.uri }} style={styles.previewImage} /><TouchableOpacity onPress={() => setImage(undefined)}><Ionicons name="close-circle" size={24} color={Colors.destructive} /></TouchableOpacity></View>}
         <View style={[styles.inputBar, { maxWidth: contentWidth }]}>
-          <TouchableOpacity onPress={() => Alert.alert('Attach photo', 'Choose a source', [{ text: 'Camera', onPress: () => selectImage('camera') }, { text: 'Gallery', onPress: () => selectImage('library') }, { text: 'Cancel', style: 'cancel' }])} style={styles.attachBtn}>
+          <TouchableOpacity onPress={chooseImage} style={styles.attachBtn}>
             <Ionicons name="image-outline" size={22} color={Colors.primaryTeal} />
           </TouchableOpacity>
           <TextInput style={styles.input} placeholder={isListening ? 'Listening…' : 'Ask FitCoach...'} placeholderTextColor={Colors.textSecondary} value={input} onChangeText={setInput} onSubmitEditing={() => sendMessage()} returnKeyType="send" />

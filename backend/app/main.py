@@ -6,18 +6,44 @@ from typing import Annotated
 from uuid import uuid4
 
 from fastapi import FastAPI, File, Form, Header, HTTPException, UploadFile
+from fastapi.middleware.cors import CORSMiddleware
+from openai import OpenAIError
 from fastapi.responses import StreamingResponse
 
 from .config import settings
+from .challenge_routes import router as challenge_router
 from .models import UserProfile
-from .providers import describe_image, stream_answer, transcribe_audio
+from .providers import FOOD_IMAGE_SYSTEM_PROMPT, describe_image, stream_answer, transcribe_audio
 from .retrieval import load_chunks, retrieve
 from .safety import safety_message
 
 app = FastAPI(title="FitCoach RAG API", version="0.1.0")
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:8081",
+        "http://localhost:8082",
+        "http://127.0.0.1:8081",
+        "http://127.0.0.1:8082",
+    ],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+app.include_router(challenge_router)
 chunks = load_chunks(Path(__file__).parent.parent / "knowledge_base")
 requests_by_user: dict[str, deque[float]] = defaultdict(deque)
 history: dict[str, list[dict[str, str]]] = defaultdict(list)
+
+
+def output_token_budget(question: str, has_image: bool) -> int:
+    if has_image:
+        return 260
+    word_count = len(question.split())
+    if word_count <= 8:
+        return 80
+    if word_count <= 20:
+        return 120
+    return 160
 
 
 def check_rate_limit(user_id: str) -> None:
@@ -71,22 +97,32 @@ async def chat(
         return StreamingResponse(iter([json.dumps({"type": "done", "answer": safe, "sources": [], "suggestions": []}) + "\n"]), media_type="application/x-ndjson")
     image_description = await describe_image(image_bytes, image.content_type or "image/jpeg") if image_bytes else ""
     query = f"{text}\n{image_description}\nGoal: {user_profile.goal or 'unknown'}"
-    selected = retrieve(chunks, query, user_profile.goal)
-    context = "\n\n".join(f"[{item.title}] {item.text}" for item in selected)
+    selected = retrieve(chunks, query, user_profile.goal, top_k=3)
+    context = "\n".join(f"[{item.title}] {item.text[:700]}" for item in selected)
     conversation_id = conversation_id or str(uuid4())
-    prior = history[conversation_id][-10:]
+    prior = history[conversation_id][-4:]
     language_name = {"en": "English", "hi": "Hindi", "mr": "Marathi"}.get(language, "English")
-    prompt = f"Respond in {language_name}. CONTEXT:\n{context}\n\nUSER PROFILE:\n{user_profile.model_dump_json()}\n\nRECENT CONVERSATION:\n{json.dumps(prior)}\n\nIMAGE DESCRIPTION:\n{image_description or 'none'}\n\nUSER QUESTION:\n{text}"
+    profile_json = user_profile.model_dump_json(exclude_none=True)
+    prompt = f"Language: {language_name}\nContext:\n{context}\nProfile:{profile_json}\nHistory:{json.dumps(prior, separators=(',', ':'))}\nImage:{image_description or 'none'}\nQuestion:{text}"
     sources = [{"title": item.title, "source": item.source, "topic": item.topic} for item in selected]
+    token_budget = output_token_budget(text, image_bytes is not None)
 
     async def events():
         answer = []
         try:
-            async for token in stream_answer(prompt):
+            system_prompt = FOOD_IMAGE_SYSTEM_PROMPT if image_bytes else None
+            if system_prompt is None:
+                answer_stream = stream_answer(prompt, max_tokens=token_budget)
+            else:
+                answer_stream = stream_answer(prompt, system_prompt, max_tokens=token_budget)
+            async for token in answer_stream:
                 answer.append(token)
                 yield json.dumps({"type": "token", "text": token}) + "\n"
         except RuntimeError as error:
             yield json.dumps({"type": "error", "message": str(error)}) + "\n"
+            return
+        except OpenAIError as error:
+            yield json.dumps({"type": "error", "message": f"OpenAI request failed: {error}"}) + "\n"
             return
         final = "".join(answer)
         history[conversation_id].extend([{"role": "user", "content": text}, {"role": "assistant", "content": final}])
