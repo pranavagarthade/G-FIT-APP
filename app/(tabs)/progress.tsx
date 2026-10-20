@@ -8,12 +8,16 @@ import {
   Dimensions,
   Image,
   Animated,
+  Modal,
+  TextInput,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import Svg, { Polyline, Rect, Text as SvgText, Line, Image as SvgImage, ClipPath, Defs, Circle as SvgCircle } from 'react-native-svg';
 import { Colors, Typography, Spacing, Radius } from '../../constants/theme';
 import { user, weightData, activityData, badges, activityLog, milestoneWall } from '../../constants/mockData';
+import { fetchProfile, fetchUserActivities, saveActivity } from '../../lib/gfitData';
+import { getSupabaseUserId } from '../../lib/supabase';
 import SegmentedControl from '../../components/SegmentedControl';
 import CardSurface from '../../components/CardSurface';
 import ProgressRing from '../../components/ProgressRing';
@@ -161,9 +165,7 @@ function WeightChart() {
 }
 
 // Simple activity bar chart
-function ActivityChart() {
-  const labels = activityData.labels;
-  const data = activityData.data;
+function ActivityChart({ labels, data }: { labels: string[]; data: number[] }) {
   const maxBarH = 100;
 
   return (
@@ -188,12 +190,142 @@ function ActivityChart() {
   );
 }
 
+function AddActivityModal({
+  visible,
+  onClose,
+  onSave,
+}: {
+  visible: boolean;
+  onClose: () => void;
+  onSave: (activity: string, duration: string, distance: string, calories: string) => void;
+}) {
+  const activities = ['Yoga', 'Walking', 'Weight training', 'Running', 'Step up/down', 'Cross Fit', 'Body weight exercise', 'Cycling', 'Swim'];
+  const [selectedActivity, setSelectedActivity] = useState('Yoga');
+  const [duration, setDuration] = useState('45');
+  const [distance, setDistance] = useState('');
+  const [calories, setCalories] = useState('');
+
+  useEffect(() => {
+    if (!visible) return;
+    setSelectedActivity('Yoga');
+    setDuration('45');
+    setDistance('');
+    setCalories('');
+  }, [visible]);
+
+  if (!visible) return null;
+
+  return (
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      <View style={styles.modalBackdrop}>
+        <View style={styles.modalCard}>
+          <Text style={styles.modalTitle}>Add activity</Text>
+          <Text style={styles.modalLabel}>Activity</Text>
+          <View style={styles.activityPickerWrap}>
+            {activities.map((activity) => (
+              <TouchableOpacity
+                key={activity}
+                style={[styles.activityPill, selectedActivity === activity && styles.activityPillSelected]}
+                onPress={() => setSelectedActivity(activity)}
+              >
+                <Text style={[styles.activityPillText, selectedActivity === activity && styles.activityPillTextSelected]}>{activity}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+
+          <Text style={styles.modalLabel}>Duration (min)</Text>
+          <TextInput
+            value={duration}
+            onChangeText={setDuration}
+            style={styles.modalInput}
+            keyboardType="numeric"
+            placeholder="45"
+          />
+
+          <Text style={styles.modalLabel}>Distance (km)</Text>
+          <TextInput
+            value={distance}
+            onChangeText={setDistance}
+            style={styles.modalInput}
+            keyboardType="numeric"
+            placeholder="Optional"
+          />
+
+          <Text style={styles.modalLabel}>Calories</Text>
+          <TextInput
+            value={calories}
+            onChangeText={setCalories}
+            style={styles.modalInput}
+            keyboardType="numeric"
+            placeholder="Optional"
+          />
+
+          <View style={styles.modalActions}>
+            <TouchableOpacity style={styles.cancelButton} onPress={onClose}>
+              <Text style={styles.cancelButtonText}>Cancel</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.saveButton} onPress={() => onSave(selectedActivity, duration, distance, calories)}>
+              <Text style={styles.saveButtonText}>Save</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
 export default function ProgressScreen() {
   const [mainTab, setMainTab] = useState(0);
   const [filterIndex, setFilterIndex] = useState(1); // Weekly default
   const [showExactStats, setShowExactStats] = useState(false);
+  const [showAddActivity, setShowAddActivity] = useState(false);
+  const [activityLogState, setActivityLogState] = useState<any[]>([]);
   const shareCardRef = useRef(null);
   const sliderRef = useRef(null);
+
+  const loadProgressData = async () => {
+    try {
+      const userId = await getSupabaseUserId();
+      if (!userId) return;
+
+      const [profile, logs] = await Promise.all([
+        fetchProfile(userId),
+        fetchUserActivities(userId),
+      ]);
+
+      if (profile?.full_name) {
+        // keep for future profile usage if needed
+      }
+
+      setActivityLogState(logs ?? []);
+    } catch (error) {
+      console.warn('Unable to load progress data from Supabase:', error);
+    }
+  };
+
+  useEffect(() => {
+    loadProgressData();
+  }, []);
+
+  const handleSaveActivity = async (activity: string, duration: string, distance: string, calories: string) => {
+    try {
+      const userId = await getSupabaseUserId();
+      if (!userId) return;
+
+      await saveActivity({
+        user_id: userId,
+        activity_type: activity,
+        duration_minutes: Number(duration) || 0,
+        distance_km: distance ? Number(distance) : null,
+        calories: calories ? Number(calories) : null,
+      });
+
+      setShowAddActivity(false);
+      await loadProgressData();
+    } catch (error) {
+      console.warn('Unable to save activity:', error);
+    }
+  };
 
   const handleShareCard = async () => {
     try {
@@ -275,7 +407,27 @@ export default function ProgressScreen() {
       {/* Activity Breakdown */}
       <SectionHeader title="Activity breakdown" />
       <CardSurface>
-        <ActivityChart />
+        <ActivityChart
+          labels={['Yoga', 'Walking', 'Cardio', 'Cycle', 'Swim']}
+          data={(() => {
+            const summary = { Yoga: 0, Walking: 0, Cardio: 0, Cycle: 0, Swim: 0 };
+            (activityLogState || []).forEach((entry) => {
+              const key = entry.activity_type;
+              if (key === 'Yoga') summary.Yoga += Number(entry.duration_minutes || 0);
+              if (key === 'Walking') summary.Walking += Number(entry.duration_minutes || 0);
+              if (key === 'Cycling') summary.Cycle += Number(entry.duration_minutes || 0);
+              if (key === 'Swim') summary.Swim += Number(entry.duration_minutes || 0);
+              if (['Running', 'Cross Fit', 'Body weight exercise', 'Weight training'].includes(key)) summary.Cardio += Number(entry.duration_minutes || 0);
+            });
+            return [
+              Math.min((summary.Yoga / 180), 1),
+              Math.min((summary.Walking / 180), 1),
+              Math.min((summary.Cardio / 180), 1),
+              Math.min((summary.Cycle / 180), 1),
+              Math.min((summary.Swim / 180), 1),
+            ];
+          })()}
+        />
       </CardSurface>
 
       {/* Achievement Badges */}
@@ -354,20 +506,29 @@ export default function ProgressScreen() {
       {/* Full Activity Log */}
       <SectionHeader title="Activity Log" />
       <CardSurface style={{ padding: 0, overflow: 'hidden' }}>
-        {activityLog.map((log, index) => (
-          <View key={log.id} style={[styles.logItem, index !== activityLog.length - 1 && styles.logBorder]}>
-            <View style={[styles.logIcon, { backgroundColor: log.color + '20' }]}>
-              <Ionicons name={log.icon as any} size={20} color={log.color} />
+        {(activityLogState.length > 0 ? activityLogState : activityLog).map((log: any, index: number) => {
+          const isSupabaseEntry = !!log.activity_type;
+          const logType = log.activity_type || log.type;
+          const logDuration = log.duration_minutes ? `${log.duration_minutes} min` : log.duration || '—';
+          const logDate = log.activity_date || log.date;
+          const logColor = isSupabaseEntry ? Colors.primaryTeal : log.color;
+          const logIcon = isSupabaseEntry ? 'body-outline' : log.icon;
+
+          return (
+            <View key={log.id} style={[styles.logItem, index !== (activityLogState.length > 0 ? activityLogState : activityLog).length - 1 && styles.logBorder]}>
+              <View style={[styles.logIcon, { backgroundColor: logColor + '20' }]}>
+                <Ionicons name={logIcon as any} size={20} color={logColor} />
+              </View>
+              <View style={styles.logInfo}>
+                <Text style={styles.logTitle}>{logType}</Text>
+                <Text style={styles.logDate}>{logDate}</Text>
+              </View>
+              <Text style={styles.logDuration}>{logDuration}</Text>
             </View>
-            <View style={styles.logInfo}>
-              <Text style={styles.logTitle}>{log.type}</Text>
-              <Text style={styles.logDate}>{log.date}</Text>
-            </View>
-            <Text style={styles.logDuration}>{log.duration}</Text>
-          </View>
-        ))}
-        <TouchableOpacity style={styles.viewMoreBtn}>
-          <Text style={styles.viewMoreText}>Load More</Text>
+          );
+        })}
+        <TouchableOpacity style={styles.viewMoreBtn} onPress={() => setShowAddActivity(true)}>
+          <Text style={styles.viewMoreText}>Add activity</Text>
         </TouchableOpacity>
       </CardSurface>
 
@@ -553,15 +714,97 @@ export default function ProgressScreen() {
         {mainTab === 2 && renderStory()}
         <View style={{ height: 40 }} />
       </ScrollView>
+
+      <AddActivityModal
+        visible={showAddActivity}
+        onClose={() => setShowAddActivity(false)}
+        onSave={handleSaveActivity}
+      />
     </SafeAreaView>
   );
 }
 
-// Reuse existing Button component styles or import it.
-// I'll assume Button is imported, adding import at the top if I didn't. 
-// Wait, I missed importing Button. Let me add it. (I will add it manually in the file via multi_replace or just re-write with it included... actually I can just use a local styled component to avoid missing it if it's not exported properly, but it IS exported in index.tsx). I will import it at the top.
-
 const styles = StyleSheet.create({
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(17, 24, 39, 0.35)',
+    justifyContent: 'center',
+    paddingHorizontal: Spacing.lg,
+  },
+  modalCard: {
+    backgroundColor: Colors.white,
+    borderRadius: Radius.lg,
+    padding: Spacing.lg,
+  },
+  modalTitle: {
+    ...Typography.h2,
+    marginBottom: Spacing.md,
+  },
+  modalLabel: {
+    ...Typography.caption,
+    color: Colors.textSecondary,
+    marginBottom: 8,
+  },
+  modalInput: {
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: Radius.md,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    marginBottom: Spacing.md,
+    fontFamily: 'Poppins-Regular',
+  },
+  activityPickerWrap: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: Spacing.md,
+  },
+  activityPill: {
+    backgroundColor: Colors.cardSurface,
+    borderRadius: Radius.full,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  activityPillSelected: {
+    backgroundColor: Colors.primaryTealLight,
+    borderColor: Colors.primaryTeal,
+  },
+  activityPillText: {
+    ...Typography.caption,
+    fontSize: 11,
+  },
+  activityPillTextSelected: {
+    color: Colors.primaryTeal,
+    fontFamily: 'Poppins-Medium',
+  },
+  modalActions: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: Spacing.sm,
+    marginTop: Spacing.sm,
+  },
+  cancelButton: {
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+  },
+  cancelButtonText: {
+    ...Typography.body,
+    color: Colors.textSecondary,
+  },
+  saveButton: {
+    backgroundColor: Colors.primaryTeal,
+    borderRadius: Radius.md,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+  },
+  saveButtonText: {
+    ...Typography.body,
+    color: Colors.white,
+    fontFamily: 'Poppins-Medium',
+  },
   container: {
     flex: 1,
     backgroundColor: Colors.background,

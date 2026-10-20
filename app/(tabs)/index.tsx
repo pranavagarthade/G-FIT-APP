@@ -12,6 +12,7 @@ import {
   Dimensions,
   Image,
   Platform,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -20,6 +21,8 @@ import { router } from 'expo-router';
 import { Colors, Typography, Spacing, Radius, Animation } from '../../constants/theme';
 import { user, coach, testimonials, weeklyChallenge } from '../../constants/mockData';
 import { communityPosts } from '../../constants/communityData';
+import { fetchActiveChallenge, fetchCommunityPosts, fetchProfile } from '../../lib/gfitData';
+import { getSupabaseUserId } from '../../lib/supabase';
 import CardSurface from '../../components/CardSurface';
 import Button from '../../components/Button';
 import Avatar from '../../components/Avatar';
@@ -136,9 +139,48 @@ function SuccessStoryCard({
 /* ────────────────────── Home Screen ────────────────────── */
 export default function HomeScreen() {
   const [showPulseSheet, setShowPulseSheet] = useState(false);
+  const [dbChallenge, setDbChallenge] = useState<any>(null);
+  const [dbCommunityPosts, setDbCommunityPosts] = useState<any[]>([]);
+  const [profileName, setProfileName] = useState(user.name);
   const fabAnim = useRef(new Animated.Value(0)).current;
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const headerAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadHomeData = async () => {
+      try {
+        const userId = await getSupabaseUserId();
+        if (userId) {
+          const profile = await fetchProfile(userId);
+          if (profile?.full_name && isMounted) {
+            setProfileName(profile.full_name);
+          } else if (isMounted) {
+            setProfileName(user.name);
+          }
+        }
+
+        const [challenge, posts] = await Promise.all([
+          fetchActiveChallenge(),
+          fetchCommunityPosts(),
+        ]);
+
+        if (!isMounted) return;
+
+        setDbChallenge(challenge);
+        setDbCommunityPosts(posts || []);
+      } catch (error) {
+        console.warn('Failed to load home data from Supabase:', error);
+      }
+    };
+
+    loadHomeData();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   // Staggered section entrance
   useEffect(() => {
@@ -175,11 +217,34 @@ export default function HomeScreen() {
   };
 
   const pulseActions = [
-    { label: 'Start a Discussion', icon: 'chatbubbles-outline' },
-    { label: 'Post an Update', icon: 'create-outline' },
-    { label: 'Post your Transformation', icon: 'sparkles-outline' },
+    { label: 'Post an Update / Discussion / Transformation', icon: 'create-outline' },
     { label: 'Add a Recipe', icon: 'restaurant-outline' },
   ];
+
+  const challengeTitle = dbChallenge?.title || weeklyChallenge.title;
+  const challengeDescription = dbChallenge?.description || weeklyChallenge.description;
+  const challengeDaysLeft = dbChallenge?.days_left ?? weeklyChallenge.daysLeft;
+  const challengeEnrolled = dbChallenge?.enrolled_count ?? weeklyChallenge.enrolled;
+  const challengePremiumOnly = dbChallenge?.is_premium_only ?? weeklyChallenge.isPremiumOnly;
+  const visibleCommunityPosts: any[] = dbCommunityPosts.length > 0
+    ? dbCommunityPosts.slice(0, 3).map((post: any) => ({
+        id: post.id,
+        userName: 'Community member',
+        timeAgo: 'Just now',
+        content: post.content,
+        tag: post.post_type === 'recipe'
+          ? 'Recipe'
+          : post.post_type === 'transformation'
+            ? 'Transformation'
+            : post.post_type === 'discussion'
+              ? 'Motivation'
+              : 'Achievement',
+        likes: Number(post.likes_count) || 0,
+        comments: [],
+        shares: 0,
+        isLiked: false,
+      }))
+    : communityPosts.slice(0, 3);
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -212,10 +277,12 @@ export default function HomeScreen() {
             />
             <View>
               <Text style={styles.greeting}>{getGreeting()},</Text>
-              <Text style={styles.userName}>{user.name}</Text>
+              <Text style={styles.userName}>{profileName}</Text>
             </View>
           </View>
-          <Avatar name={user.name} size={44} />
+          <TouchableOpacity activeOpacity={0.8} onPress={() => router.push('/(tabs)/me')}>
+            <Avatar name={profileName} size={44} />
+          </TouchableOpacity>
         </Animated.View>
 
         {/* Find your coach card */}
@@ -260,14 +327,7 @@ export default function HomeScreen() {
         </TouchableOpacity>
 
         {/* ────── Success Stories with Transformation Images ────── */}
-        <SectionHeader
-          title="Success stories"
-          rightElement={
-            <TouchableOpacity activeOpacity={0.7}>
-              <Text style={styles.seeAllText}>See all</Text>
-            </TouchableOpacity>
-          }
-        />
+        <SectionHeader title="Success stories" />
         <FlatList
           horizontal
           data={testimonials}
@@ -289,7 +349,18 @@ export default function HomeScreen() {
             { scale: fadeAnim.interpolate({ inputRange: [0, 1], outputRange: [0.95, 1] }) }
           ] 
         }}>
-          <TouchableOpacity activeOpacity={0.85}>
+          <TouchableOpacity activeOpacity={0.85} onPress={() => {
+            if (!user.isPremium) {
+              Alert.alert(
+                'Premium Feature',
+                'Weekly challenges are available for premium members only. Upgrade your membership from the app to participate.',
+                [
+                  { text: 'Maybe Later', style: 'cancel' },
+                  { text: 'Learn More', onPress: () => {} },
+                ]
+              );
+            }
+          }}>
             <CardSurface style={styles.challengeCard}>
               <Image source={require('../../assets/sugar_detox.png')} style={styles.challengeBg} resizeMode="cover" />
               <LinearGradient
@@ -300,30 +371,51 @@ export default function HomeScreen() {
                 <View style={styles.challengeBadge}>
                   <Ionicons name="time-outline" size={14} color={Colors.white} />
                   <Text style={styles.challengeBadgeText}>
-                    {weeklyChallenge.daysLeft} days left
+                    {challengeDaysLeft} days left
                   </Text>
                 </View>
                 <View style={styles.enrolledBadge}>
                   <Ionicons name="people" size={14} color={Colors.white} />
                   <Text style={styles.challengeBadgeText}>
-                    {weeklyChallenge.enrolled.toLocaleString()} enrolled
+                    {challengeEnrolled.toLocaleString()} enrolled
                   </Text>
                 </View>
               </View>
-              <Text style={styles.challengeTitle}>{weeklyChallenge.title}</Text>
+              <Text style={styles.challengeTitle}>{challengeTitle}</Text>
+              {!user.isPremium && challengePremiumOnly && (
+                <View style={styles.premiumLock}>
+                  <Ionicons name="lock-closed" size={14} color={Colors.white} />
+                  <Text style={styles.premiumLockText}>Premium Members Only</Text>
+                </View>
+              )}
             </CardSurface>
           </TouchableOpacity>
+
+          {/* Challenge Description */}
+          <CardSurface style={styles.challengeDescCard}>
+            <Text style={styles.challengeDescTitle}>About this challenge</Text>
+            <Text style={styles.challengeDescText}>{challengeDescription}</Text>
+          </CardSurface>
+
+          {/* Leaderboard Strip */}
+          <CardSurface style={styles.leaderboardCard}>
+            <View style={styles.leaderboardHeader}>
+              <Ionicons name="trophy" size={18} color={Colors.goldAccent} />
+              <Text style={styles.leaderboardTitle}>Top Performers</Text>
+            </View>
+            {(dbChallenge?.leaderboard || weeklyChallenge.leaderboard).slice(0, 5).map((entry: any, idx: number) => (
+              <View key={idx} style={styles.leaderboardRow}>
+                <Text style={styles.leaderboardRank}>#{entry.rank || idx + 1}</Text>
+                <Avatar name={entry.name} size={28} />
+                <Text style={styles.leaderboardName}>{entry.name}</Text>
+                <Text style={styles.leaderboardScore}>{entry.score} pts</Text>
+              </View>
+            ))}
+          </CardSurface>
         </Animated.View>
 
         {/* ────── Community Feed ────── */}
-        <SectionHeader
-          title="Community"
-          rightElement={
-            <TouchableOpacity activeOpacity={0.7}>
-              <Text style={styles.seeAllText}>See all</Text>
-            </TouchableOpacity>
-          }
-        />
+        <SectionHeader title="Community" />
 
         {/* Active members strip */}
         <View style={styles.communityIntro}>
@@ -340,15 +432,9 @@ export default function HomeScreen() {
         </View>
 
         {/* Community Posts */}
-        {communityPosts.slice(0, 3).map((post, idx) => (
+        {visibleCommunityPosts.map((post, idx) => (
           <CommunityPost key={post.id} post={post} animDelay={idx * 120} />
         ))}
-
-        {/* Load more */}
-        <TouchableOpacity style={styles.loadMoreBtn} activeOpacity={0.7}>
-          <Text style={styles.loadMoreText}>View more posts</Text>
-          <Ionicons name="chevron-down" size={16} color={Colors.primaryTeal} />
-        </TouchableOpacity>
 
         <View style={{ height: Platform.OS === 'ios' ? 100 : 80 }} />
       </ScrollView>
@@ -673,6 +759,71 @@ const styles = StyleSheet.create({
     textShadowColor: 'rgba(0, 0, 0, 0.5)',
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 3,
+  },
+  premiumLock: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: Radius.full,
+    alignSelf: 'flex-start',
+    marginTop: Spacing.sm,
+  },
+  premiumLockText: {
+    fontFamily: 'Poppins-SemiBold',
+    fontSize: 11,
+    color: Colors.white,
+  },
+  challengeDescCard: {
+    marginTop: Spacing.sm,
+  },
+  challengeDescTitle: {
+    ...Typography.body,
+    fontFamily: 'Poppins-SemiBold',
+    marginBottom: Spacing.xs,
+  },
+  challengeDescText: {
+    ...Typography.caption,
+    lineHeight: 18,
+  },
+  leaderboardCard: {
+    marginTop: Spacing.sm,
+  },
+  leaderboardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    marginBottom: Spacing.md,
+  },
+  leaderboardTitle: {
+    ...Typography.body,
+    fontFamily: 'Poppins-SemiBold',
+  },
+  leaderboardRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    paddingVertical: Spacing.xs + 2,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+  },
+  leaderboardRank: {
+    ...Typography.caption,
+    fontFamily: 'Poppins-SemiBold',
+    color: Colors.goldAccent,
+    width: 28,
+  },
+  leaderboardName: {
+    ...Typography.body,
+    flex: 1,
+    fontSize: 13,
+  },
+  leaderboardScore: {
+    ...Typography.caption,
+    fontFamily: 'Poppins-SemiBold',
+    color: Colors.primaryTeal,
   },
   /* ────── Community Section ────── */
   communityIntro: {

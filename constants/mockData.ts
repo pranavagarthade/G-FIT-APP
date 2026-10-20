@@ -11,6 +11,7 @@ export const user = {
   avatar: null, // Will use initials avatar
   streakDays: 12,
   rewardCoins: 0, // FLAGGED: reward system not yet built
+  isPremium: false, // Whether user has premium membership
 };
 
 export const coach = {
@@ -164,12 +165,12 @@ export const activityData = {
 };
 
 export const badges = [
-  { id: '1', title: '7-Day Streak', description: 'Complete 7 consecutive daily sessions', icon: 'flame-outline', earned: true, date: 'Aug 20, 2026' },
-  { id: '2', title: '15-Day Sugar Detox', description: 'Successfully complete the 15-day dietary challenge', icon: 'nutrition-outline', earned: true, date: 'Jul 15, 2026' },
-  { id: '3', title: 'Early Bird', description: 'Attend 10 morning sessions before 8 AM', icon: 'sunny-outline', earned: true, date: 'Aug 05, 2026' },
-  { id: '4', title: '30-Day Warrior', description: 'Complete 30 consecutive daily sessions', icon: 'trophy-outline', earned: false },
-  { id: '5', title: 'Flexibility Master', description: 'Reach level 5 in the flexibility assessment', icon: 'body-outline', earned: false },
-  { id: '6', title: 'Community Star', description: 'Receive 50 likes on a single community post', icon: 'star-outline', earned: false },
+  { id: '1', title: '7-Day Streak', description: 'Complete 7 consecutive daily sessions', icon: 'flame-outline', earned: true, date: 'Aug 20, 2026', linkedChallenge: null },
+  { id: '2', title: '15-Day Sugar Detox', description: 'Successfully complete the 15-day dietary challenge', icon: 'nutrition-outline', earned: true, date: 'Jul 15, 2026', linkedChallenge: 'sugar-detox' },
+  { id: '3', title: 'Early Bird', description: 'Attend 10 morning sessions before 8 AM', icon: 'sunny-outline', earned: true, date: 'Aug 05, 2026', linkedChallenge: null },
+  { id: '4', title: '30-Day Warrior', description: 'Complete 30 consecutive daily sessions', icon: 'trophy-outline', earned: false, linkedChallenge: '30-day-warrior' },
+  { id: '5', title: 'Flexibility Master', description: 'Reach level 5 in the flexibility assessment', icon: 'body-outline', earned: false, linkedChallenge: 'flexibility-challenge' },
+  { id: '6', title: 'Community Star', description: 'Receive 50 likes on a single community post', icon: 'star-outline', earned: false, linkedChallenge: null },
 ];
 
 export const activityLog = [
@@ -188,16 +189,27 @@ export const milestoneWall = [
 ];
 
 export const weeklyChallenge = {
+  id: 'sugar-detox',
   title: '15-Day Sugar Detox Challenge',
+  description: 'Eliminate refined sugars from your diet for 15 days. Track your meals, stay hydrated, and discover how much better you feel without processed sugars.',
   daysLeft: 4,
   enrolled: 1254,
+  isPremiumOnly: true,
+  leaderboard: [
+    { name: 'Sneha K.', score: 98, rank: 1 },
+    { name: 'Priya D.', score: 95, rank: 2 },
+    { name: 'Kunal B.', score: 92, rank: 3 },
+    { name: 'Rupal V.', score: 88, rank: 4 },
+    { name: 'Meera J.', score: 85, rank: 5 },
+  ],
 };
 
+/* ────────── Updated Settings (new structure) ────────── */
 export const settingsItems = [
-  { id: 'orders', label: 'Orders & Invoice', icon: 'receipt-outline' },
-  { id: 'packages', label: 'Package History', icon: 'cube-outline' },
-  { id: 'health-connect', label: 'Health Connect', icon: 'watch-outline', flagged: true },
-  { id: 'bookmarks', label: 'Bookmarks', icon: 'bookmark-outline' },
+  { id: 'reset-password', label: 'Reset Password', icon: 'lock-closed-outline', type: 'navigate' as const },
+  { id: 'dark-mode', label: 'Dark Mode', icon: 'moon-outline', type: 'toggle' as const },
+  { id: 'account-settings', label: 'Account Settings', icon: 'person-outline', type: 'navigate' as const },
+  { id: 'push-notifications', label: 'Push Notifications', icon: 'notifications-outline', type: 'toggle' as const },
 ];
 
 export const toolItems = [
@@ -211,4 +223,125 @@ export const legalItems = [
   { id: 'terms', label: 'Terms & Conditions' },
   { id: 'privacy', label: 'Privacy Policy' },
   { id: 'community', label: 'Community Guidelines' },
+];
+
+/* ────────── All 10 Activities with Custom Input Fields ────────── */
+export interface ActivityInputField {
+  key: string;
+  label: string;
+  placeholder: string;
+  unit: string;
+  keyboardType: 'numeric' | 'default';
+}
+
+export interface ActivityType {
+  id: string;
+  name: string;
+  icon: string;
+  color: string;
+  inputFields: ActivityInputField[];
+}
+
+export const allActivities: ActivityType[] = [
+  {
+    id: 'yoga',
+    name: 'Yoga',
+    icon: 'body-outline',
+    color: Colors.primaryTeal,
+    inputFields: [
+      { key: 'duration', label: 'Duration', placeholder: '45', unit: 'min', keyboardType: 'numeric' },
+    ],
+  },
+  {
+    id: 'weight-training',
+    name: 'Weight Training',
+    icon: 'barbell-outline',
+    color: '#E53935',
+    inputFields: [
+      { key: 'duration', label: 'Duration', placeholder: '60', unit: 'min', keyboardType: 'numeric' },
+      { key: 'sets', label: 'Total Sets', placeholder: '12', unit: 'sets', keyboardType: 'numeric' },
+    ],
+  },
+  {
+    id: 'walking',
+    name: 'Walking',
+    icon: 'walk-outline',
+    color: Colors.accentLime,
+    inputFields: [
+      { key: 'duration', label: 'Duration', placeholder: '30', unit: 'min', keyboardType: 'numeric' },
+      { key: 'distance', label: 'Distance', placeholder: '3', unit: 'km', keyboardType: 'numeric' },
+    ],
+  },
+  {
+    id: 'step-up-down',
+    name: 'Step Up Down',
+    icon: 'footsteps-outline',
+    color: '#FF9800',
+    inputFields: [
+      { key: 'duration', label: 'Duration', placeholder: '20', unit: 'min', keyboardType: 'numeric' },
+      { key: 'steps', label: 'Steps', placeholder: '500', unit: 'steps', keyboardType: 'numeric' },
+    ],
+  },
+  {
+    id: 'running',
+    name: 'Running',
+    icon: 'speedometer-outline',
+    color: '#1E88E5',
+    inputFields: [
+      { key: 'duration', label: 'Duration', placeholder: '30', unit: 'min', keyboardType: 'numeric' },
+      { key: 'distance', label: 'Distance', placeholder: '5', unit: 'km', keyboardType: 'numeric' },
+      { key: 'pace', label: 'Avg Pace', placeholder: '6', unit: 'min/km', keyboardType: 'numeric' },
+    ],
+  },
+  {
+    id: 'crossfit',
+    name: 'CrossFit',
+    icon: 'fitness-outline',
+    color: '#7B1FA2',
+    inputFields: [
+      { key: 'duration', label: 'Duration', placeholder: '45', unit: 'min', keyboardType: 'numeric' },
+      { key: 'rounds', label: 'Rounds', placeholder: '5', unit: 'rounds', keyboardType: 'numeric' },
+    ],
+  },
+  {
+    id: 'bodyweight',
+    name: 'Body Weight Exercise',
+    icon: 'accessibility-outline',
+    color: '#00897B',
+    inputFields: [
+      { key: 'duration', label: 'Duration', placeholder: '30', unit: 'min', keyboardType: 'numeric' },
+      { key: 'reps', label: 'Total Reps', placeholder: '100', unit: 'reps', keyboardType: 'numeric' },
+    ],
+  },
+  {
+    id: 'hike',
+    name: 'Hike',
+    icon: 'trail-sign-outline',
+    color: '#558B2F',
+    inputFields: [
+      { key: 'duration', label: 'Duration', placeholder: '120', unit: 'min', keyboardType: 'numeric' },
+      { key: 'distance', label: 'Distance', placeholder: '8', unit: 'km', keyboardType: 'numeric' },
+      { key: 'elevation', label: 'Elevation Gain', placeholder: '300', unit: 'm', keyboardType: 'numeric' },
+    ],
+  },
+  {
+    id: 'cycling',
+    name: 'Cycling',
+    icon: 'bicycle-outline',
+    color: '#F59E0B',
+    inputFields: [
+      { key: 'duration', label: 'Duration', placeholder: '45', unit: 'min', keyboardType: 'numeric' },
+      { key: 'distance', label: 'Distance', placeholder: '15', unit: 'km', keyboardType: 'numeric' },
+    ],
+  },
+  {
+    id: 'swim',
+    name: 'Swim',
+    icon: 'water-outline',
+    color: '#039BE5',
+    inputFields: [
+      { key: 'duration', label: 'Duration', placeholder: '30', unit: 'min', keyboardType: 'numeric' },
+      { key: 'laps', label: 'Laps', placeholder: '20', unit: 'laps', keyboardType: 'numeric' },
+    ],
+  },
 ];
